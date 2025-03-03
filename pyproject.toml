@@ -1,0 +1,29 @@
+[project]
+name = "arowana"
+version = "0.1.0"
+description = "Data storage made simple"
+readme = "README.md"
+authors = [{ name = "SlumberDemon", email = "hi@sofa.sh" }]
+requires-python = ">=3.9"
+dependencies = []
+classifiers = ["Programming Language :: Python"]
+
+
+[project.urls]
+"Fishweb" = "https://github.com/slumberdemon/fishweb"
+"Bug Reports" = "https://github.com/slumberdemon/arowana/issues"
+Source = "https://github.com/slumberdemon/arowana"
+
+
+[tool.ruff]
+src = ["src"]
+line-length = 119
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = ["A", "D", "TD003", "T20"]
+
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
