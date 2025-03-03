@@ -1,6 +1,6 @@
 # Arrowana
 
-Arowana provides a simple base and drive. Base is a NoSQL wrapper for sqlite3 and drive is a wrapper for the filesystem.
+Arowana provides a simple local base and drive. Base is a NoSQL wrapper for sqlite3 and drive is a wrapper for the filesystem.
 Arowana is a sister project of [fishweb](https://github.com/slumberdemon/fishweb).
 
 ## Installation
@@ -18,9 +18,6 @@ from arowana import Arowana
 
 arowana = Arowana("data")  # Creates 'data' folder
 base = arowana.Base("testing") # Creates base/table 'testing'
-
-# Operation example
-base.put({"key": "test", "value": "my awesome value"})
 ```
 
 ### `put`
@@ -163,6 +160,89 @@ base.drop()
 - `util.trim()` - Remove element from dict
 - `util.increment(value)` - Increment element by value
 - `util.append(value)` - Append element to list
+
+## Drive
+
+Drive makes it super easy to store and manage files.
+
+```py
+from arowana import Arowana
+
+arowana = Arowana("data")  # Creates 'data' folder
+drive = arowana.Drive("testing") # Creates folder/drive 'testing'
+```
+
+### `put`
+
+Put file
+
+Args:
+  - name: Name and path of the file
+  - data: Data content of file
+  - path: Path of file to get content from
+
+Returns:
+  - str: Name of the file
+
+```py
+# Put content directly
+drive.put("hello.txt", "Hello world")
+drive.put(b"hello.txt", "Hello world")
+
+import io
+
+# Provide file content object
+drive.put("arowana.txt", io.StringIO("hello world"))
+drive.put("arowana.txt", io.BytesIO(b"hello world"))
+
+with open("./arowana.txt", "r") as file:
+    drive.put("arowana.txt", file)
+
+# Provide a path to a file.
+drive.put("arowana.txt", path="./arowana.txt")
+```
+
+### `get`
+
+Get file content
+
+Args:
+  - name: Name and path of the file
+
+Returns:
+  - bytes: File bytes
+
+```py
+drive.get("arowana.txt")
+```
+
+### `list`
+
+List all files
+
+Args:
+  - prefix: Prefix that file names start with
+
+Returns:
+  - list: List of file names
+
+```py
+drive.list()
+```
+
+### `delete`
+
+Delete file
+
+Args:
+  - name: Name and path of the file
+
+Returns:
+  - str: Name of the deleted file
+
+```py
+drive.delete("arowana.txt")
+```
 
 ## Fishweb
 
