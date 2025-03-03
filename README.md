@@ -1,4 +1,4 @@
-# Arrowana
+# Arowana
 
 Arowana provides a simple local base and drive. Base is a NoSQL wrapper for sqlite3 and drive is a wrapper for the filesystem.
 Arowana is a sister project of [fishweb](https://github.com/slumberdemon/fishweb).
