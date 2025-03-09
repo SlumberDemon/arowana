@@ -4,24 +4,8 @@ import random
 import string
 import sqlite3
 from pathlib import Path
-from typing import Union, List
+from typing import Union
 import json
-from dataclasses import dataclass
-
-
-@dataclass
-class Item:
-    key: str
-    data: Union[dict, list, str, int, bool, float]
-
-
-@dataclass
-class Items:
-    items: List[Item]
-    # count: int
-
-
-# maybe just return dicts instead of using dataclasses
 
 
 class Util:
@@ -81,7 +65,7 @@ class _Base:
             """)
         self._connection.commit()
 
-    def put(self, data: Union[dict, list, str, int, bool, float], key: Union[str, int, None] = None) -> Item:
+    def put(self, data: Union[dict, list, str, int, bool, float], key: Union[str, int, None] = None) -> dict:
         """
         Put item into base. Overrides existing item if key already exists
 
@@ -90,7 +74,7 @@ class _Base:
             key: The key to store the data under. If None, a new key will be generated
 
         Returns:
-            Item: Added item details
+            dict: Added item details
         """
 
         _key = data.pop("key", None) if isinstance(data, dict) else None
@@ -100,12 +84,16 @@ class _Base:
         cursor.execute(
             f"""INSERT OR REPLACE INTO {self.name} (key, data) VALUES (?, ?)""",
             (key, json.dumps(data)),
-        )  # string values are added with "" for some reason
+        )
         self._connection.commit()
 
-        return Item(key, data)
+        if isinstance(data, dict):
+            data["key"] = key
+            return data
+        else:
+            return {"key": key, "value": data}
 
-    def insert(self, data: Union[dict, list, str, int, bool, float], key: Union[str, int, None] = None) -> Item:
+    def insert(self, data: Union[dict, list, str, int, bool, float], key: Union[str, int, None] = None) -> dict:
         """
         Insert item to base. Does not override existing item if key already exists
 
@@ -114,7 +102,7 @@ class _Base:
             key: The key to store the data under. If None, a new key will be generated
 
         Returns:
-            Item: Added item details
+            dict: Added item details
         """
 
         _key = data.pop("key", None) if isinstance(data, dict) else None
@@ -127,9 +115,13 @@ class _Base:
         except sqlite3.IntegrityError:
             raise Exception(f"Key '{key}' already exists")
 
-        return Item(key, data)
+        if isinstance(data, dict):
+            data["key"] = key
+            return data
+        else:
+            return {"key": key, "value": data}
 
-    def get(self, key: str) -> Item:
+    def get(self, key: str) -> dict:
         """
         Get item from base.
 
@@ -137,7 +129,7 @@ class _Base:
             key: key of the item to retrieve
 
         Returns:
-            Item: Retrieved item details
+            dict: Retrieved item details
         """
 
         cursor = self._connection.cursor()
@@ -147,7 +139,13 @@ class _Base:
         if result is None:
             raise Exception(f"Key '{key}' not found")
 
-        return Item(key, json.loads(result[0]))
+        data = json.loads(result[0])
+
+        if isinstance(data, dict):
+            data["key"] = key
+            return data
+        else:
+            return {"key": key, "value": data}
 
     def delete(self, key: str) -> None:
         """
@@ -161,7 +159,7 @@ class _Base:
         cursor.execute(f"""DELETE FROM {self.name} WHERE key = ?""", (key,))
         self._connection.commit()
 
-    def puts(self, items: List[Union[dict, list, str, int, bool, float]]) -> Items:
+    def puts(self, items: list[Union[dict, list, str, int, bool, float]]) -> dict:
         """
         Put multiple items into base
 
@@ -169,7 +167,7 @@ class _Base:
             items: Items to add
 
         Returns:
-            Items: Added item details
+            dict: Added items details
         """
 
         _items = []
@@ -180,15 +178,19 @@ class _Base:
 
             if isinstance(item, dict):
                 key = item.pop("key", None) or key
-
-            _items.append((key, json.dumps(item)))
-            returns.append(Item(key, json.dumps(item)))
+                _items.append((key, json.dumps(item)))
+                item_copy = item.copy()
+                item_copy["key"] = key
+                returns.append(item_copy)
+            else:
+                _items.append((key, json.dumps(item)))
+                returns.append({"key": key, "value": item})
 
         cursor = self._connection.cursor()
         cursor.executemany(f"""INSERT OR REPLACE INTO {self.name} (key, data) VALUES (?, ?)""", _items)
         self._connection.commit()
 
-        return Items(returns)
+        return {"items": returns}
 
     def update(self, data: dict, key: str) -> None:
         """
@@ -252,15 +254,27 @@ class _Base:
         pass
     """
 
-    def all(self) -> Items:
+    def all(self) -> dict:
         """
         Get all items in base
+
+        Returns:
+            dict: All items
         """
         cursor = self._connection.cursor()
-        cursor.execute(f"""SELECT * FROM {self.name}""")
+        cursor.execute(f"""SELECT key, data FROM {self.name}""")
         results = cursor.fetchall()
 
-        return Items([Item(result[0], result[1]) for result in results])
+        items = []
+        for key, data_str in results:
+            data = json.loads(data_str)
+            if isinstance(data, dict):
+                data["key"] = key
+                items.append(data)
+            else:
+                items.append({"key": key, "value": data})
+
+        return {"items": items}
 
     def drop(self) -> None:
         """

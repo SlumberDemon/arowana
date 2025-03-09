@@ -26,14 +26,17 @@ class _Drive:
         Returns:
             str: Name of the file
         """
-        assert path or data, "Missing data or path"
-        assert not (path and data), "Both path and data given"
+        if not (path or data):
+            raise ValueError("Missing data or path")
+        if path and data:
+            raise ValueError("Both path and data given")
 
         file = Path(self.drive_path, name)
         file.parent.mkdir(parents=True, exist_ok=True)
 
         if path:
-            content = open(path, "rb").read()
+            with Path.open(Path(path), "rb") as f:
+                content = f.read()
 
             with Path.open(file, "wb") as f:
                 f.write(content)
