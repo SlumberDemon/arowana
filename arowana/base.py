@@ -239,8 +239,8 @@ class _Base:
                     VALUES (?,
                             CASE
                                 WHEN EXISTS(SELECT 1 FROM {self.name} WHERE key = ?)
-                                THEN json_replace((SELECT data FROM {self.name} WHERE key = ?), '$.{attr}', ?)
-                                ELSE json_object('{attr}', ?)
+                                THEN json_replace((SELECT data FROM {self.name} WHERE key = ?), '$.{attr}', json(?))
+                                ELSE json_object('{attr}', json(?))
                             END
                     )
                     """,
