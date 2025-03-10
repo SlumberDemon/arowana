@@ -121,7 +121,7 @@ class _Base:
         else:
             return {"key": key, "value": data}
 
-    def get(self, key: str) -> dict:
+    def get(self, key: str) -> dict | None:
         """
         Get item from base.
 
@@ -137,7 +137,7 @@ class _Base:
         result = cursor.fetchone()
 
         if result is None:
-            raise Exception(f"Key '{key}' not found")
+            return None
 
         data = json.loads(result[0])
 
