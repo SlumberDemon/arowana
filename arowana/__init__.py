@@ -54,11 +54,11 @@ def Drive(name: str) -> _Drive:
     Returns:
         Drive: The Drive instance associated with the name.
     """
-    data_dir = os.getenv("FISHWEB_DATA_DIR", "") or "data"
+    data_dir = os.getenv("FISHWEB_DATA_DIR", "") or "./"
     return _Drive(name=name, data_dir=data_dir)
 
 
-def Base(name: str) -> _Base:
+def Base(name: str, **args) -> _Base:
     """
     Create or retrieve Base instance.
 
@@ -68,5 +68,5 @@ def Base(name: str) -> _Base:
     Returns:
         Base: The Base instance associated with the name.
     """
-    data_dir = os.getenv("FISHWEB_DATA_DIR", "") or "data"
-    return _Base(name=name, data_dir=data_dir)
+    data_dir = os.getenv("FISHWEB_DATA_DIR", "") or "./"
+    return _Base(name=name, data_dir=data_dir, **args)

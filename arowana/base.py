@@ -46,11 +46,11 @@ class Util:
 
 
 class _Base:
-    def __init__(self, name: str, data_dir: str) -> None:
+    def __init__(self, name: str, data_dir: str, file_name: str = "arowana.db") -> None:
         self.name = name
         self.data_dir = Path(data_dir)
         self.data_dir.mkdir(parents=True, exist_ok=True)
-        self._connection = sqlite3.connect(Path(data_dir, "arowana.db"))
+        self._connection = sqlite3.connect(Path(data_dir, file_name))
         self._initialize()
         self.util = Util()
 
