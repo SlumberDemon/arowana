@@ -274,7 +274,7 @@ drive.delete("arowana.txt")
 
 ## Fishweb
 
-To learn more about using arowana with fishweb read the [documentation](https://fishweb.sofa.sh/content/concepts/arowana).
+To learn more about using arowana with fishweb read the [documentation](https://fishweb.sofa.sh/content/integrations/arowana).
 
 ## Inspirations
 

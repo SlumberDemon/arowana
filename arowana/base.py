@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-import random
-import string
-import sqlite3
-from pathlib import Path
-from typing import Union
 import json
+import random
+import sqlite3
+import string
+from contextlib import contextmanager
+from pathlib import Path
+from threading import local
+from typing import Union
 
 
 class Util:
@@ -48,22 +50,35 @@ class Util:
 class _Base:
     def __init__(self, name: str, data_dir: str, file_name: str = "arowana.db") -> None:
         self.name = name
-        self.data_dir = Path(data_dir)
-        self.data_dir.mkdir(parents=True, exist_ok=True)
-        self._connection = sqlite3.connect(Path(data_dir, file_name))
-        self._initialize()
+        self.path = Path(data_dir) / file_name
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+
+        self._local = local()
         self.util = Util()
+
+        self._initialize()
 
     def random_key(self, length: int = 12) -> str:
         return "".join(random.choices(string.ascii_letters + string.digits, k=length))
 
+    @property
+    def connection(self) -> sqlite3.Connection:
+        if not hasattr(self._local, "connection"):
+            self._local.connection = sqlite3.connect(self.path)
+        return self._local.connection
+
+    @contextmanager
+    def transaction(self):
+        with self.connection:
+            yield self.connection
+
     def _initialize(self) -> None:
-        self._connection.execute(f"""
-            CREATE TABLE IF NOT EXISTS {self.name} (
-                key TEXT PRIMARY KEY,
-                data TEXT);
-            """)
-        self._connection.commit()
+        with self.transaction() as conn:
+            conn.execute(f"""
+                CREATE TABLE IF NOT EXISTS {self.name} (
+                    key TEXT PRIMARY KEY,
+                    data TEXT);
+                """)
 
     def put(self, data: Union[dict, list, str, int, bool, float], key: Union[str, int, None] = None) -> dict:
         """
@@ -80,12 +95,13 @@ class _Base:
         _key = data.pop("key", None) if isinstance(data, dict) else None
         key = str(key or _key or self.random_key())
 
-        cursor = self._connection.cursor()
-        cursor.execute(
-            f"""INSERT OR REPLACE INTO {self.name} (key, data) VALUES (?, ?)""",
-            (key, json.dumps(data)),
-        )
-        self._connection.commit()
+        with self.transaction() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                f"""INSERT OR REPLACE INTO {self.name} (key, data) VALUES (?, ?)""",
+                (key, json.dumps(data)),
+            )
+            conn.commit()
 
         if isinstance(data, dict):
             data["key"] = key
@@ -109,17 +125,17 @@ class _Base:
         key = str(key or _key or self.random_key())
 
         try:
-            cursor = self._connection.cursor()
-            cursor.execute(f"""INSERT INTO {self.name} (key, data) VALUES (?, ?)""", (key, json.dumps(data)))
-            self._connection.commit()
+            with self.transaction() as conn:
+                cursor = conn.cursor()
+                cursor.execute(f"""INSERT INTO {self.name} (key, data) VALUES (?, ?)""", (key, json.dumps(data)))
+                conn.commit()
         except sqlite3.IntegrityError:
             raise Exception(f"Key '{key}' already exists")
 
         if isinstance(data, dict):
             data["key"] = key
             return data
-        else:
-            return {"key": key, "value": data}
+        return {"key": key, "value": data}
 
     def get(self, key: str) -> dict | None:
         """
@@ -132,9 +148,10 @@ class _Base:
             dict: Retrieved item details
         """
 
-        cursor = self._connection.cursor()
-        cursor.execute(f"""SELECT data FROM {self.name} WHERE key = ?""", (key,))
-        result = cursor.fetchone()
+        with self.transaction() as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"""SELECT data FROM {self.name} WHERE key = ?""", (key,))
+            result = cursor.fetchone()
 
         if result is None:
             return None
@@ -144,8 +161,7 @@ class _Base:
         if isinstance(data, dict):
             data["key"] = key
             return data
-        else:
-            return {"key": key, "value": data}
+        return {"key": key, "value": data}
 
     def delete(self, key: str) -> None:
         """
@@ -155,9 +171,10 @@ class _Base:
             key: key of the item to delete
         """
 
-        cursor = self._connection.cursor()
-        cursor.execute(f"""DELETE FROM {self.name} WHERE key = ?""", (key,))
-        self._connection.commit()
+        with self.transaction() as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"""DELETE FROM {self.name} WHERE key = ?""", (key,))
+            conn.commit()
 
     def puts(self, items: list[Union[dict, list, str, int, bool, float]]) -> dict:
         """
@@ -186,9 +203,10 @@ class _Base:
                 _items.append((key, json.dumps(item)))
                 returns.append({"key": key, "value": item})
 
-        cursor = self._connection.cursor()
-        cursor.executemany(f"""INSERT OR REPLACE INTO {self.name} (key, data) VALUES (?, ?)""", _items)
-        self._connection.commit()
+        with self.transaction() as conn:
+            cursor = conn.cursor()
+            cursor.executemany(f"""INSERT OR REPLACE INTO {self.name} (key, data) VALUES (?, ?)""", _items)
+            conn.commit()
 
         return {"items": returns}
 
@@ -200,54 +218,55 @@ class _Base:
             data: Attributes to update
             key: Key of the item to update
         """
-        cursor = self._connection.cursor()
+        with self.transaction() as conn:
+            cursor = conn.cursor()
 
-        for attr, value in data.items():
-            if isinstance(value, Util.Trim):
-                cursor.execute(
-                    f"""UPDATE {self.name} SET data = json_remove(data, '$.{attr}') WHERE key = ?""",
-                    (key,),
-                )
-            elif isinstance(value, Util.Increment):
-                cursor.execute(
-                    f"""
-                    UPDATE {self.name}
-                    SET data = json_replace(data, '$.{attr}', json_extract(data, '$.{attr}') + ?)
-                    WHERE key = ?
-                    """,
-                    (
-                        value.val,  # perhapse use json.dumps to handle certain datatypes
-                        key,
-                    ),
-                )
-            elif isinstance(value, Util.Append):
-                cursor.execute(
-                    f"""
-                    UPDATE {self.name}
-                    SET data = json_replace(data, '$.{attr}', json_insert(json_extract(data, '$.{attr}'), '$[#]', ?))
-                    WHERE key = ?
-                    """,
-                    (
-                        value.val,  # perhapse use json.dumps to handle certain datatypes
-                        key,
-                    ),
-                )
-            else:
-                cursor.execute(
-                    f"""
-                    INSERT OR REPLACE INTO {self.name} (key, data)
-                    VALUES (?,
-                            CASE
-                                WHEN EXISTS(SELECT 1 FROM {self.name} WHERE key = ?)
-                                THEN json_replace((SELECT data FROM {self.name} WHERE key = ?), '$.{attr}', json(?))
-                                ELSE json_object('{attr}', json(?))
-                            END
+            for attr, value in data.items():
+                if isinstance(value, Util.Trim):
+                    cursor.execute(
+                        f"""UPDATE {self.name} SET data = json_remove(data, '$.{attr}') WHERE key = ?""",
+                        (key,),
                     )
-                    """,
-                    (key, key, key, json.dumps(value), json.dumps(value)),
-                )
+                elif isinstance(value, Util.Increment):
+                    cursor.execute(
+                        f"""
+                        UPDATE {self.name}
+                        SET data = json_replace(data, '$.{attr}', json_extract(data, '$.{attr}') + ?)
+                        WHERE key = ?
+                        """,
+                        (
+                            value.val,  # perhapse use json.dumps to handle certain datatypes
+                            key,
+                        ),
+                    )
+                elif isinstance(value, Util.Append):
+                    cursor.execute(
+                        f"""
+                        UPDATE {self.name}
+                        SET data = json_replace(data, '$.{attr}', json_insert(json_extract(data, '$.{attr}'), '$[#]', ?))
+                        WHERE key = ?
+                        """,
+                        (
+                            value.val,  # perhapse use json.dumps to handle certain datatypes
+                            key,
+                        ),
+                    )
+                else:
+                    cursor.execute(
+                        f"""
+                        INSERT OR REPLACE INTO {self.name} (key, data)
+                        VALUES (?,
+                                CASE
+                                    WHEN EXISTS(SELECT 1 FROM {self.name} WHERE key = ?)
+                                    THEN json_set((SELECT data FROM {self.name} WHERE key = ?), '$.{attr}', json(?))
+                                    ELSE json_object('{attr}', json(?))
+                                END
+                        )
+                        """,
+                        (key, key, key, json.dumps(value), json.dumps(value)),
+                    )
 
-        self._connection.commit()
+            conn.commit()
 
     """
     def fetch(self, query: Union[dict, list, None] = None, limit: int = 1000):  # order, pagination
@@ -261,9 +280,10 @@ class _Base:
         Returns:
             dict: All items
         """
-        cursor = self._connection.cursor()
-        cursor.execute(f"""SELECT key, data FROM {self.name}""")
-        results = cursor.fetchall()
+        with self.transaction() as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"""SELECT key, data FROM {self.name}""")
+            results = cursor.fetchall()
 
         items = []
         for key, data_str in results:
@@ -280,6 +300,7 @@ class _Base:
         """
         Delete base from database
         """
-        cursor = self._connection.cursor()
-        cursor.execute(f"""DROP TABLE IF EXISTS {self.name}""")
-        self._connection.commit()
+        with self.transaction() as conn:
+            cursor = conn.cursor()
+            cursor.execute(f"""DROP TABLE IF EXISTS {self.name}""")
+            conn.commit()
