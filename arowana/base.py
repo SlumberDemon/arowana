@@ -22,6 +22,10 @@ class Util:
         def __init__(self, value) -> None:
             self.val = value
 
+    class Subtract:
+        def __init__(self, value) -> None:
+            self.val = value
+
     def trim(self) -> Trim:
         """
         Remove element from dict
@@ -36,6 +40,15 @@ class Util:
             value: The value to increment by
         """
         return self.Increment(value)
+
+    def subtract(self, value: Union[int, float, None] = 1) -> Subtract:
+        """
+        Subtract element by value
+
+        Args:
+            value: The value to subtract by
+        """
+        return self.Subtract(value)
 
     def append(self, value: Union[dict, list, str, int, float, bool]) -> Append:
         """
@@ -232,6 +245,18 @@ class _Base:
                         f"""
                         UPDATE {self.name}
                         SET data = json_replace(data, '$.{attr}', json_extract(data, '$.{attr}') + ?)
+                        WHERE key = ?
+                        """,
+                        (
+                            value.val,  # perhapse use json.dumps to handle certain datatypes
+                            key,
+                        ),
+                    )
+                elif isinstance(value, Util.Subtract):
+                    cursor.execute(
+                        f"""
+                        UPDATE {self.name}
+                        SET data = json_replace(data, '$.{attr}', json_extract(data, '$.{attr}') - ?)
                         WHERE key = ?
                         """,
                         (
