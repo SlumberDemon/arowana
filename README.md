@@ -187,6 +187,7 @@ base.drop()
 
 - `util.trim()` - Remove element from dict
 - `util.increment(value)` - Increment element by value
+- `util.subtract(value)` - Subtract element by value
 - `util.append(value)` - Append element to list
 
 ## Drive
