@@ -1,6 +1,6 @@
 [project]
 name = "arowana"
-version = "0.1.5"
+version = "0.1.6"
 description = "Data storage made simple"
 readme = "README.md"
 authors = [{ name = "SlumberDemon", email = "hi@sofa.sh" }]
