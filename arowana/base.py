@@ -248,7 +248,7 @@ class _Base:
                         WHERE key = ?
                         """,
                         (
-                            value.val,  # perhapse use json.dumps to handle certain datatypes
+                            value.val,
                             key,
                         ),
                     )
@@ -260,7 +260,7 @@ class _Base:
                         WHERE key = ?
                         """,
                         (
-                            value.val,  # perhapse use json.dumps to handle certain datatypes
+                            value.val,
                             key,
                         ),
                     )
@@ -268,11 +268,11 @@ class _Base:
                     cursor.execute(
                         f"""
                         UPDATE {self.name}
-                        SET data = json_replace(data, '$.{attr}', json_insert(json_extract(data, '$.{attr}'), '$[#]', ?))
+                        SET data = json_replace(data, '$.{attr}', json_insert(json_extract(data, '$.{attr}'), '$[#]', json(?)))
                         WHERE key = ?
                         """,
                         (
-                            value.val,  # perhapse use json.dumps to handle certain datatypes
+                            json.dumps(value.val),
                             key,
                         ),
                     )
